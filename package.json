@@ -1,0 +1,39 @@
+{
+  "name": "aesophia-parser",
+  "version": "0.0.1",
+  "description": "Aeternity sophia language parser",
+  "main": "./dist/index.js",
+  "typings": "./dist/index.d.ts",
+  "bin": "./bin/aesophia-parser.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ybin64/aesophia-parser.git"
+  },
+  "keywords": [
+    "Aeternity",
+    "sophia",
+    "aesophia"
+  ],
+  "author": "ybin64",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ybin64/aesophia-parser/issues"
+  },
+  "homepage": "https://github.com/ybin64/aesophia-parser#readme",
+  "devDependencies": {
+    "@microsoft/api-extractor": "^7.8.13",
+    "@types/mocha": "^7.0.2",
+    "@types/node": "^14.0.13",
+    "immutable": "^4.0.0-rc.12",
+    "mocha": "^8.0.1",
+    "ts-loader": "^7.0.5",
+    "ts-node": "^8.10.2",
+    "typescript": "^3.9.5",
+    "webpack": "^4.43.0",
+    "webpack-cli": "^3.3.12"
+  },
+  "dependencies": {}
+}

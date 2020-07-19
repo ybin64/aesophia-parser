@@ -1,0 +1,13 @@
+test/
+*dont-checkin*
+src/
+doc/
+stdlib/
+Makefile
+webpack*
+.vscode/
+etc/
+temp/
+api-extractor.json
+tsconfig.json
+

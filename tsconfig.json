@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "outDir": "./dist",
+        "sourceMap": false,
+
+        // Overriden in webpack.config
+        "declaration" : false,
+       
+        "module": "commonjs",
+        "esModuleInterop": true,
+        "moduleResolution": "node",
+        "target": "es6",
+        
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true
+    },
+
+    "exclude" : [
+    ]
+    
+}

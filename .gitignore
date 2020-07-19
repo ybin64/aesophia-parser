@@ -1,0 +1,10 @@
+*.sw[a-z]
+.DS_Store
+node_modules
+dist/
+bin/
+*dont-checkin*
+
+# api-extractor stuff
+etc/
+temp/

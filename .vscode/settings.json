@@ -1,0 +1,6 @@
+{
+    "files.exclude": {
+        "**/*.sw[a-z]": true,
+        "**/src/*.js" : true
+    }
+}
