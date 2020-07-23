@@ -9,8 +9,8 @@ import * as path from 'path'
 
 import {
     AstItem, AstItemType,
-    ParseError, ParseWarning, ParseArgs,
-    ErrorLocation, BeginEndPos,
+    ParseErrWarn, ParseError, ParseWarning, ParseArgs,
+    ErrWarnLocation, BeginEndPos,
     AddIncludeFunc, AddIncludeArgs
 } from './grammar'
 
@@ -20,42 +20,31 @@ import {
 
 import {Scanner} from './scanner'
 
-import {
-    ParserImpl, ParserImplResult
-} from './parser-impl'
 
 
-export type ParserParseError = {
-
-    // err and message are mutually exclusive
-    err? : ParseError,
-    message? : string
+/**
+ * Used for both errors and warnings
+ * 
+ * NOTE: withLock and noLocMessage are mutually exclusive
+ */
+export type FileParseErrWarn = {
+    message : string
+    location? : ErrWarnLocation
 
     filename? : string,
-
-    //rootURI? : string,
-    //rootLoc? : BeginEndPos
-
-    /**
-     * E.g. the location for the grouping stmt a uses stmt points at
-     */
-    //refLoc?      : BeginEndPos,
-
-    /**
-     * E.g. the file where the grouping stmt is declared
-     */
-    //refFilename? : string
 }
 
-export type ParserParseWarning = ParserParseError
+export type FileParseError = FileParseErrWarn
+export type FileParseWarning = FileParseErrWarn
 
 export type ParseResult = {
     ast          : undefined | AstItem,
-    errors       : ParserParseError[],
-    warnings     : ParseWarning[],
+    errors       : FileParseError[],
+    warnings     : FileParseWarning[],
 }
 
-export function addError(errors : ParserParseError[], error :  ParserParseError | string) : void {
+export function addError(errors : FileParseError[], error :  FileParseError | string) : void {
+  
     if (typeof error === 'string') {
         errors.push({
             message : error
@@ -66,7 +55,7 @@ export function addError(errors : ParserParseError[], error :  ParserParseError 
 }
 
 export function addBeginEndPosError(
-                    errors : ParserParseError[],
+                    errors : FileParseError[],
                     text : string,
                     loc : BeginEndPos,
                     filename? : string,
@@ -76,14 +65,27 @@ export function addBeginEndPosError(
 {
     addError(errors, {
         filename : filename,
-        err : {
-            message : text,
-            location : beginEndPos2ErrorLocation(loc),
-        },
+        
+        message : text,
+        location : beginEndPos2ErrorLocation(loc),
+    
 
         //refLoc : refLoc,
         //refFilename : refFilename
     })
+}
+
+export function createBeginEndPosError(message : string, loc : BeginEndPos, filename? : string) : FileParseError {
+    const ret : FileParseError = {
+        message : message,
+        location : beginEndPos2ErrorLocation(loc)  
+    }
+
+    if (filename) {
+        ret.filename = filename
+    }
+
+    return ret
 }
 
 export type ErrorLocRef = {
@@ -91,11 +93,11 @@ export type ErrorLocRef = {
     loc : BeginEndPos
 }
 
-export function addErrorWithRef(errors : ParserParseError[], text : string, errRef : ErrorLocRef) {
+export function addErrorWithRef(errors : FileParseError[], text : string, errRef : ErrorLocRef) {
     addBeginEndPosError(errors, text, errRef.loc, errRef.uri)
 }
 
-export function appendErrors(dest : ParserParseError[], src : ParserParseError[] | undefined) : void {
+export function appendErrors(dest : FileParseError[], src : FileParseError[] | undefined) : void {
     if (src) {
         for (let e of src) {
             dest.push(e)
@@ -150,7 +152,7 @@ let _dummyLogger = {
  * @return ParseResult
  *
  */
-
+/*
 export function parse(text : string, type? : AstItemType, args? : ParserParseArgs) : ParseResult {
     if (args === undefined) {
         args = {
@@ -172,9 +174,9 @@ export function parse(text : string, type? : AstItemType, args? : ParserParseArg
 
     return _parse(text, args, addModuleInclude, type)
 }
-
+*/
 // ----------------------------------------------------------------------------
-
+/*
 function _parse(text : string,
             args : ParserParseArgs,
             addSubmoduleInclude : AddIncludeFunc,
@@ -203,10 +205,12 @@ function _parse(text : string,
 
     for (let e of result.errors) {
         ret.errors.push({
-            err : e,
+            message  : e.message,
+            location : e.location,
             filename : args.filename
         });
     }
 
     return ret
 }
+*/

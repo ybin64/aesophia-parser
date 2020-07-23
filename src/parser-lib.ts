@@ -12,22 +12,27 @@ import * as fs from 'fs'
 import {Map} from 'immutable'
 
 import {
-    AstItem, Pos, StmtErrLoc,
-    BeginEndPos, ErrorLocation,
-    AddIncludeFunc, AddIncludeArgs
+    AstItem, Pos, StmtErrLoc, 
+    BeginEndPos, ErrWarnLocation,
+    AddIncludeFunc, AddIncludeArgs, 
+    ExprIdentifierType,
+    AstItem_TopIncludeDecl,
+    AstItem_Expr, AstItem_Expr_Application, AstItem_Expr_Identifier
 } from './grammar'
+
 
 
 import {
     ParserLogger,
-    ParserParseError, ParserParseWarning,
-    addError, parse as sophiaParse
+    FileParseError, FileParseWarning,
+    addError
 } from './parser'
 
 
 import {
     SemanticResult, checkSemantics
 } from './semantics'
+import { StrWithBELoc } from './scanner'
 
 
 
@@ -107,7 +112,7 @@ export function pos2StmtErrLoc(pos : Pos) : StmtErrLoc {
     }
 }
 
-export function beginEndPos2ErrorLocation(beginEndPos : BeginEndPos) : ErrorLocation {
+export function beginEndPos2ErrorLocation(beginEndPos : BeginEndPos) : ErrWarnLocation {
     return {
         begin : pos2StmtErrLoc(beginEndPos.b),
         end   : pos2StmtErrLoc(beginEndPos.e)
@@ -138,44 +143,46 @@ export function stmtEndErrLoc(stmt : any) : StmtErrLoc {
 
 // ----------------------------------------------------------------------------
 
-function _isInside(ast : AstItem, line : number, col : number) {
-    if (ast && ast.loc) {
-        var b;
-        var a;
-        var e;
+export const enum InsideAstItemType {
+    Default = 1,
 
-        if (ast.loc) {
-            b = ast.loc.b;
-            e = ast.loc.e;
-        }
+    /**
+     * Inside include declaration string
+     */
+    IncompleteIncludeStr = 2,
 
-        if (b && e) {
-            if ((b[1] < line) && (line <= e[1])) {
-                // FIXME: Check column if on same line
-                if (line == e[1]) {
-                  // At last line of statement
-                  return col <= e[2];
-                } else {
-                    return true;
-                }
-            }
-        }
-    }
+    /**
+     * Inside an expression identifier
+     */
+    ExprIdentifier = 201,
+}
 
-    return false;
+export type InsideAstItem = {
+    type : InsideAstItemType
+    ast : AstItem
+
+    /**
+     * Valid for type === ExprIdentifier
+     */
+    idType? : ExprIdentifierType
+
+    /**
+     * Valid for type === ExprIdentifier
+     */
+    identifier? : StrWithBELoc
 }
 
 /**
  * Return inner most statement that the position is within.
  *
- * @param ast    Yang parsed AST
+ * @param ast    Ast
  * @param line   1-based line number
  * @param column 1-based column number
  *
  * @return Found statement or undefined
  */
-export function insideAst(ast : AstItem, line : number, column : number) : AstItem | undefined {
-    var asts : AstItem[] = [];
+export function insideAst(ast : AstItem, line : number, column : number) : InsideAstItem | undefined {
+    var asts : InsideAstItem[] = [];
     _insideAstAcc(ast, line, column, asts);
 
     if (asts.length > 0) {
@@ -186,18 +193,108 @@ export function insideAst(ast : AstItem, line : number, column : number) : AstIt
 }
 
 
-function _insideAstAcc(stmt : AstItem, line : number, column : number, acc : AstItem[]) {
-    if (_isInside(stmt, line, column)) {
-        acc.push(stmt);
+function _insideAstAcc(ast : AstItem, line : number, column : number, acc : InsideAstItem[]) {
+    const inside = _isInsideAst(ast, line, column)
+
+    if (inside) {
+        acc.push(inside)
     }
 
-    if (stmt.children) {
-        for (var c = 0; c < stmt.children.length; c++) {
-            _insideAstAcc(stmt.children[c], line, column, acc);
-        }
+    for (let child of ast.children) {
+        _insideAstAcc(child, line, column, acc)
     }
 }
 
+function _isInsideAst(ast : AstItem, line : number, col : number) : InsideAstItem | undefined {
+    //console.log(`_isInsideAst : type=${ast.type} : [${line}, ${col}]`, ast.loc)
+
+    if (ast.type === 'expr') {
+        return _isInsideExpr(ast as AstItem_Expr, line , col)
+    }
+    if (ast.type === 'top-include-decl') {
+        return _isInsideAstTopIncludeDecl(ast as AstItem_TopIncludeDecl, line , col)
+    } 
+
+    return _defaultInsideAst(ast, line, col)
+}
+
+function _defaultInsideAst(ast : AstItem, line : number, col : number) : InsideAstItem | undefined {
+    if (insideBEPos(ast.loc, line, col, 0)) {
+        return {
+            type : InsideAstItemType.Default,
+            ast : ast
+        }
+    }    
+}
+
+// -----------------------------------------------------------------------------
+// Inside include
+
+function _isInsideAstTopIncludeDecl(ast : AstItem_TopIncludeDecl, line : number, col : number) : InsideAstItem | undefined {  
+    if (ast.include && (insideBEPos(ast.include.fullLoc, line, col, 1))) {
+        if (!ast.validIncludeToken) {
+            return {
+                type : InsideAstItemType.IncompleteIncludeStr,
+                ast : ast,
+            }
+        } else {
+            return {
+                type : InsideAstItemType.Default,
+                ast : ast
+            }
+        }
+    }
+    
+    return _defaultInsideAst(ast, line, col)
+}
+
+// -----------------------------------------------------------------------------
+// Inside expr
+
+function _isInsideExpr(ast : AstItem_Expr, line : number, col : number) : InsideAstItem | undefined {  
+    if (ast.exprType === 'application') {
+        return _isInsideExprApplication(ast as AstItem_Expr_Application, line, col)
+    } else if (ast.exprType === 'identifier') {
+        return _isInsideExprIdentifier(ast as AstItem_Expr_Identifier, line , col)
+    }
+
+    return _defaultInsideAst(ast, line, col)
+}
+
+function _isInsideExprApplication(ast : AstItem_Expr_Application, line : number, col : number) : InsideAstItem | undefined {  
+    if (ast.expr.exprType === 'identifier') {
+        const ie = _isInsideExprIdentifier(ast.expr as AstItem_Expr_Identifier, line, col)
+        if (ie) {
+            return ie
+        }
+    }
+
+    return _defaultInsideAst(ast, line, col)
+}
+
+function _isInsideExprIdentifier(ast : AstItem_Expr_Identifier, line : number, col : number) : InsideAstItem | undefined {  
+  
+    if (insideBEPos(ast.identifier.loc, line, col, 0)) {
+        return {
+            type : InsideAstItemType.ExprIdentifier,
+            ast  : ast,
+            idType : ast.idType,
+            identifier : ast.identifier
+        }
+    }
+
+    return _defaultInsideAst(ast, line, col)
+}
+
+// -----------------------------------------------------------------------------
+
+export function insideBEPos(pos : BeginEndPos, line : number, col : number, endColDelta : number) {
+     if ((pos.b[1] <= line) && (line <= pos.e[1])) {
+        return (pos.b[2] <= col) && (col <= (pos.e[2] + endColDelta))
+    }
+
+    return false
+}
 
 // ----------------------------------------------------------------------------
 
@@ -221,331 +318,6 @@ export function fileExist(filename : string) : boolean {
 //
 
 
-function _addNonExistingFileError(errors : ParserParseError[], filename : string) : void {
-    addError(errors, `No such file: '${filename}'`);
- }
-
- function _nonExistingFileResult(filename : string) : ContextParseResult {
-    let errors : ParserParseError[] = [];
-    _addNonExistingFileError(errors, filename);
-    return {
-        errors   : errors,
-        warnings : [],
-
-        parseTimeMs : -1,
-        semanticCheckTimeMs : -1
-    };
-}
-
-
-function _addSemanticResult(result : _ContextParseOneTextResult, semanticResult? : SemanticResult) {
-    if (semanticResult) {
-        result.errors = result.errors.concat(semanticResult.errors);
-        result.warnings = result.warnings.concat(semanticResult.warnings);
-    }
-}
-
-type _ContextParseOneTextResult = {
-    ast?     : AstItem,
-    errors   : ParserParseError[],
-    warnings : ParserParseWarning[],
-}
-
-export type ContextParseResult = {
-    ast?              : AstItem
-    errors            : ParserParseError[]
-    warnings          : ParserParseWarning[]
-
-    semanticResult?   : SemanticResult
-
-    parseTimeMs         : number
-    semanticCheckTimeMs : number
-}
-
-
 export function getFileContent(filename : string) : string {
     return fs.readFileSync(filename, 'utf8');
-}
-
-export class ParseContext {
-    private _logger : ParserLogger;
-
-    constructor(logger : ParserLogger) {
-        this._logger = logger;
-    }
-
-    public parseFile(filename : string,
-            rootURI : string,
-            searchPaths : string[],
-
-            sc : StatementCache,
-            rsc : ResolvedStmtCache,
-            pmsc : ParsedModuleSubmoduleCache
-            
-            ) : ContextParseResult
-    {
-        if (!fileExist(filename)) {
-            return _nonExistingFileResult(filename);
-        }
-
-        let semanticCheck : boolean = true;
-
-        let parseTimer = new Timer()
-
-        let result = _parseOneText(getFileContent(filename), sc, pmsc, {
-            fileExist      : fileExist,
-            getFileContent : getFileContent,
-            recurseImport  : true,
-            recurseInclude : true,
-            semanticCheck  : semanticCheck
-        }, {
-            filename          : filename,
-            rootURI           : rootURI, //filename,
-            searchPaths       : searchPaths,
-            level             : 0
-        },
- 
-        {
-            logger : this._logger
-        });
-
-        parseTimer.stop()
-
-        let semanticResult : SemanticResult | undefined;
-
-        let semanticTimer = new Timer()
-
-        if (semanticCheck) {
-            semanticResult = this._checkSemantics(filename, result.ast, sc, rsc,
-                //result.parsedModules, result.parsedSubmodules
-                );
-
-            _addSemanticResult(result, semanticResult);
-        }
-
-        semanticTimer.stop()
-
-        return {
-            ast               : result.ast,
-            errors            : result.errors,
-            warnings          : result.warnings,
-            semanticResult    : semanticResult,
-
-            parseTimeMs         : parseTimer.timeMs(),
-            semanticCheckTimeMs : semanticTimer.timeMs()
-        }
-    }
-
-
-    
-    public parseText(text : string,
-            rootURI : string,
-            searchPaths : string[],
-            sc : StatementCache,
-            rsc : ResolvedStmtCache,
-            pmsc : ParsedModuleSubmoduleCache,
-            args : ParseTextArgs, filename? : string,
-            debug? : ParseContextDebug) : ContextParseResult
-    {
-        if (filename === undefined) {
-            filename = '-';
-        }
-
-        let parseTimer = new Timer()
-
-        let result = _parseOneText(text, sc, pmsc, args, {
-            filename : filename,
-            rootURI  : rootURI, //filename,
-            searchPaths : searchPaths,
-            level    : 0
-        },
-        {
-            logger : this._logger,
-            debug : debug
-        });
-
-        parseTimer.stop()
-
-        let semanticTimer = new Timer()
-
-        let semanticResult : SemanticResult | undefined;
-
-        if (args.semanticCheck) {
-            semanticResult = this._checkSemantics(filename, result.ast, sc, rsc,
-                                        //result.parsedModules, result.parsedSubmodules,
-                                        debug)
-            _addSemanticResult(result, semanticResult);
-        }
-
-        semanticTimer.stop()
-
-        return {
-            ast               : result.ast,
-            errors            : result.errors,
-            warnings          : result.warnings,
-            parseTimeMs         : parseTimer.timeMs(),
-            semanticCheckTimeMs : semanticTimer.timeMs()
-        }
-    }
-
-
-    // ------------------------------------------------------------------------
-    // Private methods
-
-    private _checkSemantics(filename : string,
-                ast : AstItem | undefined,
-                sc : StatementCache,
-                rsc : ResolvedStmtCache,
-                //parsedModules : ParsedModuleMap, parsedSubmodules : ParsedSubmoduleMap,
-                debug? : ParseContextDebug) : SemanticResult | undefined
-    {
-
-        if (ast) {
-            return checkSemantics(ast, sc, rsc, 
-                //parsedModules, parsedSubmodules, 
-                debug);
-        }
-    }
-
-}
-
-
-type _Debug = {
-    logger : ParserLogger,
-    debug? : ParseContextDebug
-}
-
-
-
-function _addError(errors : ParserParseError[], text : string, loc : BeginEndPos, filename? : string, root? : {
-    uri : string,
-    loc : BeginEndPos
-}) : void {
-
-    let rootURI : string | undefined = undefined;
-    let rootLoc : BeginEndPos | undefined  = undefined;
-
-    if (root) {
-        rootURI = root.uri;
-        rootLoc = root.loc;
-    }
-
-    addError(errors, {
-        filename : filename,
-        //rootURI : rootURI,
-        //rootLoc : rootLoc,
-        err : {
-            message : text,
-            location : beginEndPos2ErrorLocation(loc)
-        }
-    })
-}
-
-
-
-type _TrackMap = Map<string, boolean>
-
-type _ParseOneFileArgs = {
-    filename    : string,
-    rootURI     : string,
-    searchPaths : string[],
-    rootLoc?    : BeginEndPos,
-    level       : number,
-    topModule?  : AstItem,
-}
-
-
-type _ParseInclude = {
-    inc      : AddIncludeArgs,
-    filename : string,
-    rootURI  : string,
-    rootLoc  : BeginEndPos
-}
-
-type _ParseOneTextResult = {
-    ast?     : AstItem,
-    errors   : ParserParseError[],
-    warnings : ParserParseWarning[],
-}
-
-
-function _rootLoc(fileArgs : _ParseOneFileArgs, stmt : AstItem) : BeginEndPos {
-    let rootLoc : BeginEndPos | undefined = fileArgs.rootLoc;
-    if (fileArgs.level === 0) {
-        rootLoc = stmt.loc;
-    }
-
-    if (!rootLoc) {
-        // Should never happen, just to satisfy the TypeScript compiler.
-        throw new Error('No rootLoc');
-    }
-
-    return rootLoc;
-}
-
-function _getFileInSearchPaths(paths : string[], filename : string) : string | void {
-    for (let p of paths) {
-        let fp = path.resolve(p, filename);
-        if (fileExist(fp)) {
-            return fp;
-        }
-    }
-}
-function _getExistingSubmoduleFilename(subModuleName : string, searchPaths : string[]) : string | void {
-    return _getFileInSearchPaths(searchPaths, subModuleName + '.yang');
-}
-
-function _addModuleInclude(includes : _ParseInclude[], inc : AddIncludeArgs, fileArgs : _ParseOneFileArgs, obErrors : ParserParseError[]) {
-    let rootLoc = _rootLoc(fileArgs, inc.includeStmt);
-
-    // FIXME: We don't have an arg in AstItem for Sophia
-    //let filename = _getExistingSubmoduleFilename(inc.includeStmt.arg, fileArgs.searchPaths);
-
-    let filename = ''
-
-    if (filename) {
-        includes.push({
-            inc: inc,
-            filename: filename,
-            rootURI : fileArgs.rootURI,
-            rootLoc : rootLoc
-        });
-    } else {
-        _addError(obErrors, `submodule "${inc.includeStmt}" not found in search path`, inc.loc,
-            path.basename(fileArgs.filename), {
-                uri : fileArgs.rootURI,
-                loc : rootLoc
-            });
-    }
-}
-
-function _parseOneText(text : string,
-                sc   : StatementCache,
-                pmsc : ParsedModuleSubmoduleCache,
-                parseArgs : ParseTextArgs,
-                fileArgs : _ParseOneFileArgs,
-                debug : _Debug) : _ParseOneTextResult
-{
-    // Out of band result, e.g. for recursive includes
-    let obErrors : ParserParseError[] = []
-
-
-    let result = sophiaParse(text, undefined, {
-        filename: fileArgs.filename,
-        logger: debug.logger,
-
-
-        addModuleInclude: (inc : AddIncludeArgs) : void => {
-            // FIXME: How to handle this in Sophia
-            //_addModuleInclude(includes, inc, fileArgs, obErrors);
-        }
-    });
-
-    result.errors = result.errors.concat(obErrors);
-
-    return {
-        ast               : result.ast,
-        errors            : result.errors,
-        warnings          : result.warnings,
-    }
 }

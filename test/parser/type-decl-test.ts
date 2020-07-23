@@ -71,21 +71,18 @@ describe('type decl', () => {
 
         assert.deepEqual(result.errors, [{
             filename : undefined,
-            err : {
-                message : "Invalid identifier, format is [a-z_][A-Za-z0-9_']*",
-                location : {
-                    begin : {
-                        offset : 5,
-                        line   : 1,
-                        column : 6
-                    }, 
-                    end : {
-                        offset : 7,
-                        line   : 1,
-                        column : 8
-                    }
+            message : "Invalid identifier, format is [a-z_][A-Za-z0-9_']*",
+            location : {
+                begin : {
+                    offset : 5,
+                    line   : 1,
+                    column : 6
+                }, 
+                end : {
+                    offset : 7,
+                    line   : 1,
+                    column : 8
                 }
-                
             }
         }])
     })
@@ -199,21 +196,18 @@ describe('type decl', () => {
             
             assert.deepEqual(result.errors, [{
                 filename : undefined,
-                err : {
-                    message : "Invalid type variable",
-                    location : {
-                        begin : {
-                            offset : 8,
-                            line   : 1,
-                            column : 9
-                        }, 
-                        end : {
-                            offset : 10,
-                            line   : 1,
-                            column : 11
-                        }
+                message : "Invalid type variable",
+                location : {
+                    begin : {
+                        offset : 8,
+                        line   : 1,
+                        column : 9
+                    }, 
+                    end : {
+                        offset : 10,
+                        line   : 1,
+                        column : 11
                     }
-                    
                 }
             }])
         })
@@ -245,21 +239,18 @@ describe('type decl', () => {
             assert.equal(result.errors.length, 1)
             assert.deepEqual(result.errors, [{
                 filename : undefined,
-                err : {
-                    message : "Unexpected token ')'",
-                    location : {
-                        begin : {
-                            offset : 14,
-                            line   : 1,
-                            column : 15
-                        }, 
-                        end : {
-                            offset : 14,
-                            line   : 1,
-                            column : 15
-                        }
+                message : "Unexpected token ')'",
+                location : {
+                    begin : {
+                        offset : 14,
+                        line   : 1,
+                        column : 15
+                    }, 
+                    end : {
+                        offset : 14,
+                        line   : 1,
+                        column : 15
                     }
-                    
                 }
             }])
         })

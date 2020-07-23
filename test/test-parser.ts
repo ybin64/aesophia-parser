@@ -1,42 +1,49 @@
 import {AstItemType, AstItemNoLoc, AstItem, ParseError} from '../src/grammar'
 
-import * as grammar from '../src/grammar'
-
 import * as parser from '../src/parser'
 import * as scanner from '../src/scanner'
-import * as mp from '../src/parser-impl'
-import { List } from 'immutable'
+import * as pimpl from '../src/parser-impl'
+import * as pf from '../src/parsed-file'
+import * as grammar from '../src/grammar'
+
+
+
+
+export function textParser(text : string) : pf.TextParserResult {
+    let _scanner = new scanner.Scanner(text)
+  
+    const result = pimpl.parseAstItem('file', _scanner)
+
+    return {
+        ast : result.ast,
+        errors : result.errors,
+        warnings : result.warnings
+    }
+}
+
 
 export type ParseRuleResult = {
     ast? : AstItem
-    errors : parser.ParserParseError[]
-    warnings : parser.ParserParseWarning[]
+    errors : parser.FileParseError[]
+    warnings : parser.FileParseWarning[]
     scanner : scanner.Scanner
 }
+
 function _manualParserParse(text : string, type : AstItemType) : ParseRuleResult {
     let _scanner = new scanner.Scanner(text)
-    let parser = new mp.ParserImpl()
 
-    //rule = rule.replace(/_stmt$/, '')
-
- 
-
-    let args = {
-        addModuleImport  : () => {},
-        addModuleInclude : () => {}
-    }
-
-    const result = parser.parseAstItem(args, type, _scanner)
+    const result = pimpl.parseAstItem(type, _scanner)
     
 
-    let ast = result.stmt
-    let errors : parser.ParserParseError[] = []
-    let warnings : parser.ParserParseWarning[] = []
+    let ast = result.ast
+    let errors : parser.FileParseError[] = []
+    let warnings : parser.FileParseWarning[] = []
 
     for (let e of result.errors) {
         errors.push({
+            message : e.message,
+            location : e.location,
             filename : undefined,
-            err : e
         })
     }
 
@@ -116,7 +123,7 @@ function parseRuleAstAllowError(rule : AstItemType, text : string) {
 }
 
 
-function removeFilenameFromErrors(errors : parser.ParserParseError[]) {
+function removeFilenameFromErrors(errors : parser.FileParseError[]) {
     for (var c = 0; c < errors.length; c++) {
        delete errors[c].filename;
     }
@@ -124,22 +131,39 @@ function removeFilenameFromErrors(errors : parser.ParserParseError[]) {
     return errors;
 }
 
-function removeFilenameAndLocationFromErrors(errors : parser.ParserParseError[]) {
+function removeFilenameAndLocationFromErrors(errors : parser.FileParseError[]) {
     for (var c = 0; c < errors.length; c++) {
        delete errors[c].filename;
-       delete errors[c].err!.location
+       //delete errors[c].withLoc!.location
+       delete errors[c].location
     }
 
     return errors;
 }
 
-export function removeLocationOffsetFromErrors(errors : parser.ParserParseError[]) {
+export function removeLocationOffsetFromErrors(errors : parser.FileParseError[]) {
     return errors.map(e => {
-        delete e.err!.location.begin.offset
-        delete e.err!.location.end.offset
+        //delete e.withLoc!.location.begin.offset
+        //delete e.withLoc!.location.end.offset
+
+        delete e.location!.begin.offset
+        delete e.location!.end.offset
 
         return e
     })
+}
+
+type _BeginEndPosNoOffset = {
+    // [row, col]
+    b : number[],
+    e : number[]
+}
+
+export function removeBEPosOffset(pos : grammar.BeginEndPos) : _BeginEndPosNoOffset {
+    return {
+        b : [pos.b[1], pos.b[2]],
+        e : [pos.e[1], pos.e[2]]
+    }
 }
 
 

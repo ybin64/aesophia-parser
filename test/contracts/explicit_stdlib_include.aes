@@ -1,0 +1,4 @@
+include "List.aes"
+
+contract C =
+  entrypoint test() = List.map((x) => x, [1,2,3,4])

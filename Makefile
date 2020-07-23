@@ -24,9 +24,14 @@ verify-valid-test-contracts:
 
 .PHONY:build-release
 build-release: build-lib-release build-cli-release
+	ls -l bin
+	ls -l dist
+
 
 .PHONY:build-dev
 build-dev: build-lib-dev build-cli-dev
+	ls -l bin
+	ls -l dist
 
 
 
@@ -132,8 +137,10 @@ publish-npm-dry-run:
 
 .PHONY:dev-build-local-vscode-deploy
 dev-build-local-vscode-deploy:
-	$(MAKE) build
-	make -C ../aesophia-vscode reinstall-local-aesophia-parser
+	$(MAKE) build-dev
+	$(MAKE) verify-explicit-stdlib
+	$(MAKE) verify-valid-test-contracts
+	$(MAKE) -C ../aesophia-vscode reinstall-local-aesophia-parser
 
 
 test-cli:

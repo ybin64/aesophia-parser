@@ -4,7 +4,7 @@ import assert from 'assert'
 
 import * as scanner from '../../src/scanner'
 
-import {TokenType, Scanner} from '../../src/scanner'
+import {TokenType, TokenError, Scanner} from '../../src/scanner'
 
 
 const TestScanner = scanner.Test.TestScanner
@@ -609,6 +609,117 @@ describe('scanner token', () => {
 
         assert.deepStrictEqual(false, scanner.nextToken()) 
     })
+})
+
+describe('scanner token string', () => {
+    it('scanner-token-string ok 1', () => {
+        //                           01234
+        const scanner = new Scanner('"one"')
+        const result = scanner.nextToken()
+
+        
+        assert.deepStrictEqual(result, {
+            type : TokenType.String,
+            s : {
+                text : 'one',
+                loc : {
+                    b : [1, 1, 2],
+                    e : [3, 1, 4]
+                },
+                fullLoc : {
+                    b : [0, 1, 1],
+                    e : [4, 1, 5]
+                },  
+            }
+        })       
+    })
+
+    it('scanner-token-string missing right quote', () => {
+        // EOF
+
+        //                         01234
+        let scanner = new Scanner('"one')
+        let result = scanner.nextToken()
+ 
+        assert.deepStrictEqual(result, {
+            type : TokenType.String,
+            error : TokenError.MissingRightStringQuote,
+            s : {
+                text : 'one',
+                loc : {
+                    b : [1, 1, 2],
+                    e : [3, 1, 4]
+                },
+                fullLoc : {
+                    b : [0, 1, 1],
+                    e : [3, 1, 4]
+                },  
+            }
+        })
+        
+        // CR
+        scanner = new Scanner('"two\r!')
+        result = scanner.nextToken()
+ 
+        assert.deepStrictEqual(result, {
+            type : TokenType.String,
+            error : TokenError.MissingRightStringQuote,
+            s : {
+                text : 'two',
+                loc : {
+                    b : [1, 1, 2],
+                    e : [3, 1, 4]
+                },
+                fullLoc : {
+                    b : [0, 1, 1],
+                    e : [3, 1, 4]
+                },  
+            }
+        })
+
+        // LF
+        scanner = new Scanner('"thr\n!')
+        result = scanner.nextToken()
+
+        assert.deepStrictEqual(result, {
+            type : TokenType.String,
+            error : TokenError.MissingRightStringQuote,
+            s : {
+                text : 'thr',
+                loc : {
+                    b : [1, 1, 2],
+                    e : [3, 1, 4]
+                },
+                fullLoc : {
+                    b : [0, 1, 1],
+                    e : [3, 1, 4]
+                },  
+            }
+        })
+
+        // CRLF
+        scanner = new Scanner('"fou\r\n!')
+        result = scanner.nextToken()
+
+        assert.deepStrictEqual(result, {
+            type : TokenType.String,
+            error : TokenError.MissingRightStringQuote,
+            s : {
+                text : 'fou',
+                loc : {
+                    b : [1, 1, 2],
+                    e : [3, 1, 4]
+                },
+                fullLoc : {
+                    b : [0, 1, 1],
+                    e : [3, 1, 4]
+                },  
+            }
+        })
+
+    })
+
+
 })
 
 

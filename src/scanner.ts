@@ -68,9 +68,15 @@ export const enum TokenType {
     misc = 199
 }
 
+export const enum TokenError {
+    MissingRightStringQuote = 1,
+    TrailingQIdDot = 2
+}
+
 export type Token = {
     type : TokenType
     s    : StrWithFullBELoc
+    error? : TokenError
 }
 
 export function tokenToStrWithBELoc(t : Token) : StrWithBELoc {
@@ -88,8 +94,27 @@ export function tokenToStrWithFullBELoc(t : Token) : StrWithFullBELoc {
     }
 }
 
+/**
+ * Split a valid QId into its parts
+ * @param qid Valid QId
+ */
+export function splitQId(qid : string) : {
+    con : string
+    id : string
+} {
+    const items = qid.split('.')
+    return {
+        con : items[0],
+        id  : items[1]
+    }
+}
 
 // -----------------------------------------------------------------------------
+
+function _isEolCh(ch : string) : boolean {
+    let c = ch.charCodeAt(0)
+    return (c === 10) || (c === 13)
+}
 
 function _isDigitCh(ch : string) : boolean {
     let c = ch.charCodeAt(0)
@@ -358,10 +383,19 @@ export class Scanner {
         let text = pch
         this.nextCh()
 
-        const _token = (type : TokenType, text : string, beginPos : ScannerPos, endPos: ScannerPos) : Token => {
+        const _token = (type : TokenType, text : string, beginPos : ScannerPos, endPos: ScannerPos, fullLocBeginPos? : ScannerPos, fullLocEndPos? : ScannerPos) : Token => {
             const loc : BeginEndPos = {
                 b : _scannerPos2Pos(beginPos),
                 e : _scannerPos2Pos(endPos)
+            }
+
+            let fullLoc = loc
+
+            if (fullLocBeginPos && fullLocEndPos) {
+                fullLoc = {
+                    b : _scannerPos2Pos(fullLocBeginPos),
+                    e : _scannerPos2Pos(fullLocEndPos)
+                }
             }
 
             return {
@@ -369,7 +403,7 @@ export class Scanner {
                 s : {
                     text : text,
                     loc : loc,
-                    fullLoc : loc
+                    fullLoc : fullLoc
                 }
             }
         }
@@ -423,6 +457,18 @@ export class Scanner {
                 const orgPos = this.pos()
                 this.nextCh()
 
+                const nextPos = this.pos()
+
+                const tpch = this.peekCh()
+
+                if ((tpch === false) || _isWS(tpch)) {
+                    // Assume it's an erroneous QId
+                    const ret = _token2(TokenType.QId, text + ".", beginPos, _scannerPos2Pos(nextPos))
+                    ret.error = TokenError.TrailingQIdDot
+                    return ret
+                }
+
+
                 const idt = this.nextToken()
                 if (idt && (idt.type === TokenType.Id)) {
                     // QId
@@ -453,13 +499,17 @@ export class Scanner {
             }
             return _token(TokenType.Int, text, beginPos, endPos)  
         } else if (pch === '"') {
-            const str = this._tryMatchString()
+            const str = this._tryMatchString(beginPos)
           
             if (str) {
-                // FIXME: fullLoc and loc should be different here
-                return _token(TokenType.String, str.text, str.lQ, str.rQ)
-            }
+                const ret = _token(TokenType.String, str.text, str.locB, str.locE, str.flocB, str.flocE)
 
+                if (str.missingRightStringQuote) {
+                    ret.error = TokenError.MissingRightStringQuote
+                }
+
+                return ret
+            }
         } 
         
         {
@@ -825,36 +875,56 @@ export class Scanner {
         return true
     }
 
-    private _tryMatchString() : false | {
-        lQ : ScannerPos,
-        rQ : ScannerPos,
+    private _tryMatchString(lqPos : ScannerPos) : false | {
+        locB : ScannerPos,
+        locE : ScannerPos,
+        flocB : ScannerPos, // Full location left quote position
+        flocE : ScannerPos, // Full location right quote position
         text : string
+        missingRightStringQuote : boolean
     } {
+        
         // The first " is already consumed here
         const orgPos = this.pos()
 
+     
         let text = ''
         let pch = this.peekCh()
         let rQ : ScannerPos = this.pos()
+        let locE = orgPos
+        let prevPos = lqPos
 
-        while ((pch !== false) && (pch !== '"')) {
+        while ((pch !== false) && (pch !== '"') && !_isEolCh(pch)) {
+            locE = this.pos()
             text += this.nextCh()
+            prevPos = rQ
             rQ = this.pos()
             pch = this.peekCh()
         }
 
+        /*
         if (pch === false) {
             this.setPos(orgPos)
             return false
         }
+        */
 
-        // Consume last "
-        this.nextCh()
+        let missingRightStringQuote = false
+        if ((pch === false) || _isEolCh(pch)) {
+            rQ = prevPos
+            missingRightStringQuote = true
+        } else {
+            // Consume last "
+            this.nextCh()
+        }
 
         return {
-            lQ : orgPos,
-            rQ : rQ,
-            text : text
+            locB : orgPos,
+            locE : locE,
+            flocB : lqPos,
+            flocE : rQ,
+            text : text,
+            missingRightStringQuote : missingRightStringQuote
         }
     }
 }

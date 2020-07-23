@@ -57,13 +57,15 @@ include "bar.aes"
                 type : 'top-include-decl',
                 include : {
                     text : 'foo.aes'
-                }
+                },
+                validIncludeToken : true
             }, {
 
                 type : 'top-include-decl',
                 include : {
                     text : 'bar.aes'
-                }
+                },
+                validIncludeToken : true
 
             }]
         })

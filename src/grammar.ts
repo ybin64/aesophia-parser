@@ -4,7 +4,7 @@
 // See the LICENSE file in the project root for license information.
 // ----------------------------------------------------------------------------
 
-import { StrWithFullBELoc, StrWithBELoc } from "./scanner";
+import { StrWithFullBELoc, StrWithBELoc, TokenError } from "./scanner";
 
 /**
  * Types and functions used in yang-grammar.pegjs
@@ -29,9 +29,19 @@ export function posCol(pos : Pos) : number {
     return pos[2]
 }
 
+
+export function pos2Str(pos : Pos) : string {
+    return `[${pos[0]}, ${pos[1]}, ${pos[2]}]`
+}
+
+
 export type BeginEndPos = {
     b : Pos,
     e : Pos
+}
+
+export function bePos2Str(be : BeginEndPos) : string {
+    return `{b=${pos2Str(be.b)}, e=${pos2Str(be.e)}}`
 }
 
 
@@ -85,6 +95,9 @@ export interface AstItem_TopNamespaceDecl extends AstItem {
 export interface AstItem_TopIncludeDecl extends AstItem {
     type : 'top-include-decl'
     include : StrWithFullBELoc
+
+    /** It's a complete include string */
+    validIncludeToken  : boolean
 }
 
 export interface AstItem_TypeDecl extends AstItem {
@@ -487,6 +500,7 @@ export interface AstItem_Expr_Application extends AstItem_Expr {
     type : 'expr',
     exprType : 'application'
     expr : AstItem_Expr
+    children : AstItem_Expr[]
 }
 
 /**
@@ -591,6 +605,9 @@ export interface AstItem_Expr_Identifier extends AstItem_Expr {
     exprType : 'identifier'
     idType : ExprIdentifierType
     identifier : StrWithBELoc
+
+    invalidToken? : TokenError
+    
     children : []
 }
 
@@ -650,17 +667,20 @@ export type StmtErrLoc = {
     column : number
 }
 
-export type ErrorLocation = {
+export type ErrWarnLocation = {
     begin : StmtErrLoc,
     end   : StmtErrLoc
 }
 
-export type ParseWarning = any;
 
-export type ParseError = {
+
+export type ParseErrWarn = {
     message  : string,
-    location : ErrorLocation
+    location : ErrWarnLocation
 }
+
+export type ParseError = ParseErrWarn
+export type ParseWarning = ParseErrWarn
 
 
 export type AddIncludeArgs = {

@@ -39,7 +39,7 @@ type t = int
 
         assert.equal(result.errors.length, 1)
         assert.deepStrictEqual([{
-            err : {
+            withLoc : {
                 location : {
                     begin : {
                         line : 3,
@@ -104,20 +104,17 @@ contract Simple1 =
 
 
     assert.deepStrictEqual( tp.removeLocationOffsetFromErrors(result.errors), [{
-        err : {
-            location : {
-                begin : {
-                    line : 4,
-                    column : 3
-                },
-                end : {
-                    line   : 4,
-                    column : 3
-                }
+        message : 'Unexpected indentation',
+        location : {
+            begin : {
+                line : 4,
+                column : 3
             },
-            message : 'Unexpected indentation'
+            end : {
+                line   : 4,
+                column : 3
+            }
         }
-
 }])
 
     })

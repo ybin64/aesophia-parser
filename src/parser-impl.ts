@@ -4,12 +4,10 @@
 // See the LICENSE file in the project root for license information.
 // ----------------------------------------------------------------------------
 
-import {Map} from 'immutable'
-
 import {
     AstItemType, AstItem, AstItem_Type,
     Pos, posRow, posCol,
-    BeginEndPos, ParseError,
+    BeginEndPos, ParseError, ParseWarning,
 
     AddIncludeFunc, AddIncludeArgs,
 } from './grammar'
@@ -22,65 +20,45 @@ import {
 
 import {
     Token, tokenToStrWithBELoc, tokenToStrWithFullBELoc,
-    isValidId, isValidCon, isValidTVar, isValidQId, isValidQCon,
-    Scanner, ScannerPos, StrWithBELoc, StrWithFullBELoc,
-    isNonNegativeIntegerValue, isIntegerValue, TokenType
+    Scanner, ScannerPos, StrWithBELoc, 
+    TokenType, TokenError
 } from './scanner'
-import { parseRuleNoLocationNoEmptyChildren } from '../test/test-parser'
-
-// ----------------------------------------------------------------------------
-
-
 
 
 // ----------------------------------------------------------------------------
 
-export type ParserImplArg = {
-    addModuleInclude : AddIncludeFunc
-}
-
-
-export type ParserImplResult = {
-    stmt : AstItem | undefined
+export type ParseResult = {
+    ast : AstItem | undefined
     errors : ParseError[]
+    warnings : ParseWarning[]
 }
 
-export class ParserImpl {
-    private scanner : Scanner
+export function parse(scanner : Scanner) : ParseResult {
+    return parseAstItem('file', scanner)
+}
 
-    public parse(args : ParserImplArg, scanner : Scanner) : ParserImplResult {
-        let parseState = this._initParseState(scanner, args.addModuleInclude)
-
-        let stmt = _parse(parseState, ['file'])
-
-        return {
-            stmt   : stmt,
-            errors : parseState.errors
-        }
-    }
-
-    public parseAstItem(args : ParserImplArg, type : AstItemType, scanner : Scanner) : ParserImplResult {
-        let parseState = this._initParseState(scanner, args.addModuleInclude)
-
-        let ast = _parse(parseState, [type])
+export function parseAstItem(type : AstItemType, scanner : Scanner) : ParseResult {
+    const ps = _initParseState(scanner)
  
-        return {
-            stmt : ast,
-            errors : parseState.errors
-        }
-    }
-
-    private _initParseState(scanner : Scanner, addModuleIncludeF : AddIncludeFunc) : _ParseState {
-        return {
-            parser : this,
-            scanner : scanner,
-            addModuleInclude : addModuleIncludeF,
-            errors  : [],
-            argOpaque : undefined,
-            blocks : []
-        }       
-    }
+    let ast = _parse(ps, [type])
+ 
+    return {
+        ast : ast,
+        errors : ps.errors,
+        warnings : ps.warnings
+    }   
 }
+
+function _initParseState(scanner : Scanner) : _ParseState {
+    return {
+        scanner : scanner,
+        errors  : [],
+        warnings : [],
+        argOpaque : undefined,
+        blocks : []
+    }        
+}
+
 
 // -----------------------------------------------------------------------------
 // Private function
@@ -122,15 +100,13 @@ type _ParseBlockInfo = {
     astCount : number
     firstChildPos? : BeginEndPos
 }
+
 type _ParseState = {
-    parser  : ParserImpl
     scanner : Scanner
-
-
-    addModuleInclude : AddIncludeFunc
 
     // FIXME: Replace errors with immutable.List
     errors  : ParseError[]
+    warnings : ParseWarning[]
 
     // Statment specific argument parsing data
     argOpaque : any
@@ -279,14 +255,6 @@ function _matchNextToken(ps : _ParseState, kw : string) : Token {
     throw new NoMatchError()
 }
 
-function _matchNextConToken(ps : _ParseState) : Token {
-    const t = ps.scanner.nextToken()
-    if (t && t.type === TokenType.Con) {
-        return t
-    }
-
-    throw new NoMatchError()
-}
 
 function _isToken(t : Token | false, ch : string) : boolean {
     return (t && (t.s.text === ch))
@@ -308,7 +276,11 @@ function _buildAst<T extends AstItem>(type : AstItemType, children : AstItem[], 
     } as T
 }
 
-
+function _checkValidStringToken(ps : _ParseState, t : Token) {
+    if (t.error === TokenError.MissingRightStringQuote) {
+        _addParseError(ps, "Missing string end quote", t.s.fullLoc)    
+    }
+}
 
 // -----------------------------------------------------------------------------
 // Match functions
@@ -674,6 +646,7 @@ function _parseAst(ps: _ParseState, type : AstItemType) : AstItem {
     switch (type) {
         case 'file'              : return _parseFile(ps)
         case 'top-decl'          : return _parseTopDecl(ps)
+        case 'top-include-decl'  : return _matchInclude(ps)
         case 'top-contract-decl' : return _matchContract(ps)
         case 'type-decl'         : return _parseTypeDecl(ps)
         case 'record-decl'       : return _matchRecordDecl(ps)
@@ -759,7 +732,7 @@ function _parseTopDecl(ps: _ParseState) : AstItem {
 
 function _matchContract(ps : _ParseState) : grammar.AstItem_TopContractDecl {
     const t = _matchNextToken(ps, 'contract') 
-    let con = _matchNextConToken(ps)
+    let con = _matchConCheckValid(ps)
    
     _matchNextChToken(ps, '=')
    
@@ -773,7 +746,7 @@ function _matchContract(ps : _ParseState) : grammar.AstItem_TopContractDecl {
 
 function _matchNamespace(ps : _ParseState) : grammar.AstItem_TopNamespaceDecl {
     const t = _matchNextToken(ps, 'namespace') 
-    let con = _matchNextConToken(ps)
+    let con = _matchConCheckValid(ps)
    
     _matchNextChToken(ps, '=')
    
@@ -794,12 +767,14 @@ function _matchInclude(ps : _ParseState) : grammar.AstItem_TopIncludeDecl {
     const s = ps.scanner.nextToken()
 
     if (s && (s.type === TokenType.String)) {
+        _checkValidStringToken(ps, s)
         const ret = _buildAst<grammar.AstItem_TopIncludeDecl>('top-include-decl', [], {
             b : t.s.fullLoc.b,
             e : s.s.fullLoc.e
         })
 
         ret.include = tokenToStrWithFullBELoc(s)
+        ret.validIncludeToken = s.error === undefined
         return ret
     }
 
@@ -1829,7 +1804,14 @@ function _matchExprArgs(ps : _ParseState, args : _MatchExprArg) : grammar.AstIte
             const id = _tryMatchValidToken(ps, tt)
 
             if (id) {
-                expr1 = _createIdExpr(id, idType)
+                const exprId = _createIdExpr(id, idType)
+                if (id.error !== undefined) {
+                    exprId.invalidToken = id.error
+
+                    _addParseError(ps, 'Invalid identifier', exprId.identifier.loc)
+                }
+
+                expr1 = exprId
             }
         }
     }
@@ -1850,6 +1832,7 @@ function _matchExprArgs(ps : _ParseState, args : _MatchExprArg) : grammar.AstIte
             expr1.literalType = 'int'
             expr1.literal = tokenToStrWithBELoc(t) 
         } else if (t && (t.type === TokenType.String)) {
+            _checkValidStringToken(ps, t)
             expr1 = _createAstExpr('literal', [], t.s.loc)
             expr1.literalType = 'string'
             expr1.literal = tokenToStrWithBELoc(t) 
@@ -2118,17 +2101,9 @@ function _matchGenerator(ps : _ParseState) : grammar.AstItem_Generator {
     }
 
     if (!ret) {
-        //console.log('_matchGenerator : 70 : ')
-        const pattern = _matchPattern(ps)
-        //console.log('_matchGenerator : 71 : pattern=', pattern)
-        //console.log('_matchGenerator : 72 : ', ps.scanner.peekToken())
-        
+        const pattern = _matchPattern(ps)        
         _matchNextToken(ps, '<-')
-
-        //console.log('_matchGenerator : 73 : ')
         const expr = _matchExpr(ps)
-
-        //console.log('_matchGenerator : 74 : ')
 
         ret = _buildAst<grammar.AstItem_Generator>('generator', [], {
             b : pattern.loc.b,
@@ -2288,8 +2263,3 @@ function _matchExprPath(ps: _ParseState) : grammar.AstItem_Path {
 
     throw new NoMatchError()
 }
-
-
-
-
-

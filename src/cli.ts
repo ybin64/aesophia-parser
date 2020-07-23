@@ -78,22 +78,25 @@ function _parseArgs() : Args {
 
 
 import {
-    ParseError,
-    AddIncludeFunc, BeginEndPos, AddIncludeArgs
+    ParseErrWarn
 } from './grammar'
 
 
 import {
-    ParserParseError,
+    FileParseError, FileParseWarning,
     ParserLogger,
-    ParserParseArgs, ParseResult, parse
+
 } from './parser'
 
 import {
-    Timer, ParseContext, ContextParseResult,
-    StatementCache, ResolvedStmtCache, ParsedModuleSubmoduleCache
+    Timer, 
+    StatementCache, ResolvedStmtCache, ParsedModuleSubmoduleCache, getFileContent
 } from './parser-lib'
+import { Scanner } from './scanner';
 
+import * as parser_impl from './parser-impl'
+import * as parsed_file from './parsed-file'
+import * as explicit_stdlib from './explicit-stdlib'
 
 
 let _dummyLogger : ParserLogger = {
@@ -106,26 +109,23 @@ let _logger : ParserLogger = {
     }
 }
 
-function _logErrorOrWarning(type : string, e : ParserParseError, filename? : string) {
+function _logErrorOrWarning(type : string, e : FileParseError, filename? : string) {
     if (e.filename !== undefined) {
         filename = e.filename;
     }
 
     let message : string;
 
-    if (e.err) {
-        let err = e.err;
-        let line = err.location.begin.line;
-        let col = err.location.begin.column;
+    if (e.location) {
+        const line = e.location.begin.line;
+        const col = e.location.begin.column;
 
         message = line + ':' + col
 
-        message += `: ${type}: ` + err.message
-    } else if (e.message) {
-        message = ` ${type}: ` + e.message;
+        message += `: ${type}: ` + e.message
     } else {
-        throw new Error('Neither err or message is defined in error message structure');
-    }
+        message = ` ${type}: ` + e.message;
+    } 
 
     if (filename !== undefined) {
         console.log(path.basename(filename) + ':' + message);
@@ -134,11 +134,11 @@ function _logErrorOrWarning(type : string, e : ParserParseError, filename? : str
     }
 }
 
-function _logError(e : ParserParseError, filename? : string) {
+function _logError(e : FileParseError, filename? : string) {
     _logErrorOrWarning('error', e, filename);
   }
   
-  function _logWarning(e : ParserParseError, filename? : string) {
+  function _logWarning(e : FileParseError, filename? : string) {
     _logErrorOrWarning('warning', e, filename);
   }
 
@@ -155,7 +155,12 @@ function _testSuffix(args : Args) {
     // Do nothin
 }
 
-function _testShowTimes(args : Args, totalTimeMs : number, result : ContextParseResult) {
+type ParseFileResult = {
+    errors : FileParseError[]
+    warnings : FileParseWarning[]
+}
+
+function _testShowTimes(args : Args, totalTimeMs : number, result : ParseFileResult) {
 
     function _logSemanticItem(name : string, timeMs : number | undefined) {
         let value : string
@@ -172,14 +177,16 @@ function _testShowTimes(args : Args, totalTimeMs : number, result : ContextParse
     if (args.test.showTimes) {
         _logInfo('')
         _logInfo(`Total time           : ${totalTimeMs / 1000.0} (s)`)
-        _logInfo(`Parse time           : ${result.parseTimeMs / 1000.0} (s)`)
-        _logInfo(`Semantic check time  : ${result.semanticCheckTimeMs / 1000.0} (s)`)
 
-        
+
+        //_logInfo(`Parse time           : ${result.parseTimeMs / 1000.0} (s)`)
+        //_logInfo(`Semantic check time  : ${result.semanticCheckTimeMs / 1000.0} (s)`)
+
+        /*
         if (result.semanticResult) {
             let t = result.semanticResult.timing
 
-            /* 
+            
             _logSemanticItem('parsedModulestate     ', t.parsedModuleStateMs)
             _logSemanticItem('parsedSubmodulesState ', t.parsedSubmodulesStateMs)
             _logSemanticItem('getExpandedModules    ', t.getExpandedModulesMs)
@@ -187,17 +194,18 @@ function _testShowTimes(args : Args, totalTimeMs : number, result : ContextParse
             _logSemanticItem('augmentModule         ', t.augmentModuleMs)
             _logSemanticItem('checkLeafTypes        ', t.checkLeafTypesMs)
             _logSemanticItem('checkExpandedStmtRules', t.checkExpandedStmtRulesMs)
-            */
             
-        }      
+            
+        }   
+        */   
     }
 }
 
 
 // -----------------------------------------------------------------------------
 
-function _sortError(a : ParserParseError, b : ParserParseError) : number {
-    function _cmp(a : ParseError, b : ParseError) {
+function _sortError(a : FileParseError, b : FileParseError) : number {
+    function _cmp(a : ParseErrWarn, b : ParseErrWarn) {
         if (a.location.begin.line < b.location.begin.line) {
             return -1;
         } else if (a.location.begin.line > b.location.begin.line) {
@@ -213,35 +221,37 @@ function _sortError(a : ParserParseError, b : ParserParseError) : number {
         }
     }
 
-    if (a.message) {
+    if (!a.location) {
         return -1;
-    } else if (b.message) {
+    } else if (!b.location) {
         return 1;
     }
 
-    // Both have a valid err member.
+    // Both have a valid location 
 
-    if (a.err && b.err) {
-        // Non explicit filenames have priority
-        if ((a.filename === undefined) && (b.filename === undefined)) {
-            return _cmp(a.err, b.err);
-        } else if (a.filename === b.filename) {
-            return _cmp(a.err, b.err);
-        } else if (a.filename === undefined) {
-            return -1
-        } else if (b.filename === undefined) {
-            return 1;
-        } else if (a.filename <= b.filename) {
-            return -1;
-        } else {
-            return 1;
-        }
+    const aloc = a as ParseErrWarn
+    const bloc = b as ParseErrWarn
+
+    // Non explicit filenames have priority
+    if ((a.filename === undefined) && (b.filename === undefined)) {
+        return _cmp(aloc, bloc);
+    } else if (a.filename === b.filename) {
+        return _cmp(aloc, bloc);
+    } else if (a.filename === undefined) {
+        return -1
+    } else if (b.filename === undefined) {
+        return 1;
+    } else if (a.filename <= b.filename) {
+        return -1;
+    } else {
+        return 1;
     }
+
 
     return 0;
 }
 
-function _handleParseResult(result : ContextParseResult, filename? : string) {
+function _handleParseResult(result : ParseFileResult, filename? : string) {
     if (result.errors.length > 0) {
         for (let e of result.errors.sort(_sortError)) {
             _logError(e, filename);
@@ -255,7 +265,7 @@ function _handleParseResult(result : ContextParseResult, filename? : string) {
     }
 }
 
-function _processExit(result : ContextParseResult) {
+function _processExit(result : ParseFileResult) {
     if (result.errors.length > 0) {
         process.exit(1)
     } else {
@@ -265,10 +275,14 @@ function _processExit(result : ContextParseResult) {
 
 // -----------------------------------------------------------------------------
 
+/*
+function _parseText(text : string) : parserimpl.ParseResult {
+    //return parse(text, undefined, args);
+    const scanner = new Scanner(text)
 
-function _parseText(text : string, args? : ParserParseArgs) : ParseResult {
-    return parse(text, undefined, args);
+    return parserimpl.parse(scanner)
 }
+*/
 
 function _parseStdin() {
     var stdin = process.stdin;
@@ -292,6 +306,7 @@ function _parseStdin() {
 
 // -----------------------------------------------------------------------------
 
+/*
 class NullParsedModuleSubmoduleCache implements ParsedModuleSubmoduleCache {
     
     public getModule(moduleName : string) : undefined {
@@ -303,27 +318,56 @@ class NullParsedModuleSubmoduleCache implements ParsedModuleSubmoduleCache {
     }
     
 }
+*/
+
+function _fileContentResolver(fileuri : string) : string | false {
+    if (explicit_stdlib.isExplicitStdlibUri(fileuri)) {
+        return explicit_stdlib.getExplicitStdlibContent(fileuri)
+    }
+
+    return false
+} 
+
+function _parseText(text : string) : parsed_file.TextParserResult {
+    const scanner = new Scanner(text)
+    return parser_impl.parse(scanner)
+}
+
 function _parseOneFile(args : Args, filename : string) {
     let totalTimer = new Timer()
 
     let logger = _logger;
-    let ctx : ParseContext = new ParseContext(logger);
-    let sc = new StatementCache()
-    let rsc = new ResolvedStmtCache()
-    let pmsc = new NullParsedModuleSubmoduleCache()
 
     _testPrefix(args)
 
     let searchPaths : string[] = args.searchPaths.concat([])
     searchPaths.push(path.dirname(path.resolve(process.cwd(), filename)))
 
-    //ctx.addModuleSearchPath(path.dirname(path.resolve(process.cwd(), filename)));
+    const parseResult = _parseText(getFileContent(filename))
 
-    let result = ctx.parseFile(filename, filename, searchPaths, sc, rsc, pmsc);
+    const result : ParseFileResult = {
+        warnings : parseResult.warnings,
+        errors   : parseResult.errors
+    }
+
+    if (parseResult.ast) {
+        const cache = new parsed_file.ParsedFileCache()
+        const pf = parsed_file.createParsedFile({
+            fileuri  : filename, 
+            fileAst  : parseResult.ast,
+            warnings : parseResult.warnings,
+            errors   : parseResult.errors
+        })
+
+        cache.addParsedFile(pf, _fileContentResolver, _parseText)
+        result.warnings = cache.getWarnings()
+        result.errors   = cache.getErrors()
+
+    }
 
     // Dirty fix to help with error sorting
     for (let e of result.errors) {
-        if (e.err && (e.filename === filename)) {
+        if (e.location && (e.filename === filename)) {
             e.filename = undefined;
         }
     }

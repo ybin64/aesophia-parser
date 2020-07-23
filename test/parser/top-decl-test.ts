@@ -258,21 +258,18 @@ contract Identity =
 
         assert.deepEqual(result.errors, [{
             filename : undefined,
-            err : {
-                message : `Missing stmt`,
-                location : {
-                    begin : {
-                        offset : 48,
-                        line   : 3,
-                        column : 28
-                    }, 
-                    end : {
-                        offset : 48,
-                        line   : 3,
-                        column : 28
-                    }
+            message : `Missing stmt`,
+            location : {
+                begin : {
+                    offset : 48,
+                    line   : 3,
+                    column : 28
+                }, 
+                end : {
+                    offset : 48,
+                    line   : 3,
+                    column : 28
                 }
-                
             }
         }])
 

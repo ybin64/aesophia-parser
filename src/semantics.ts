@@ -9,7 +9,7 @@ import {
 } from './grammar'
 
 import {
-    ParserParseError, ParserParseWarning
+    FileParseError, FileParseWarning
 } from './parser'
 
 
@@ -43,12 +43,12 @@ export type SemanticResult = {
     /**
      * Errors
      */
-    errors   : ParserParseError[],
+    errors   : FileParseError[],
 
     /**
      * Warnings
      */
-    warnings : ParserParseWarning[],
+    warnings : FileParseWarning[],
 
     /**
      * Timing information

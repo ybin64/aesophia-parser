@@ -14,6 +14,16 @@ module.exports = {
                 declaration : true
             }
         }
+      }, {
+        test: /\.aes$/i,
+        use: [
+          {
+            loader: 'raw-loader',
+            options: {
+              esModule: true,
+            },
+          },
+        ]
       },
     ],
   },

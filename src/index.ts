@@ -9,14 +9,34 @@
 // Exports for generated aggregated d.ts file
 
 export {
-    ParseError, ErrorLocation
+    FileParseError, FileParseWarning, FileParseErrWarn
+} from './parser'
+
+export {
+    ParseError, ParseWarning, ErrWarnLocation
 } from './grammar'
 
 export {
-    ParserImplArg,
-    ParserImpl
+    parse
 } from './parser-impl'
+
+export {
+    FileContentResolver,
+    TextParser, TextParserResult,
+    ParsedFileCache, createParsedFile
+} from './parsed-file'
+
 
 export {
     Scanner
 } from './scanner'
+
+export {
+    isExplicitStdlibUri,
+    getExplicitStdlibContent
+} from './explicit-stdlib'
+
+export {
+    CompletionItemType, CompletionItem, 
+    GetCompletionItemsArgs, getCompletionItems
+} from './completion'

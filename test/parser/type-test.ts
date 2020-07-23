@@ -145,22 +145,22 @@ describe('type literal', () => {
 
         assert.deepEqual(result.errors, [{
             filename : undefined,
-            err : {
-                message : "Expected type",
-                location : {
-                    begin : {
-                        offset : 16,
-                        line   : 1,
-                        column : 17
-                    }, 
-                    end : {
-                        offset : 16,
-                        line   : 1,
-                        column : 17
-                    }
+            message : "Expected type",
+        
+            location : {
+                begin : {
+                    offset : 16,
+                    line   : 1,
+                    column : 17
+                }, 
+                end : {
+                    offset : 16,
+                    line   : 1,
+                    column : 17
                 }
-                
             }
+            
+        
         }])
 
     })

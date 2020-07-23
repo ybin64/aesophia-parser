@@ -8,7 +8,7 @@ test:
 
 single-test:
 	$(MOCHA) -r ts-node/register \
-		-g "expr-list-comprehension guard 1" \
+		-g "error-recovery-function 1" \
 		./**/*-test.ts
 
 
@@ -24,8 +24,11 @@ verify-explicit-stdlib: \
 	../stdlib/Pair.aesj \
 	../stdlib/Triple.aesj
 
+
+
 .PHONY:verify-valid-test-contracts
 verify-valid-test-contracts: \
+	../test/contracts/explicit_stdlib_include.aesj \
 	../test/contracts/identity.aesj \
 	../test/contracts/counter.aesj \
 	../test/contracts/factorial.aesj \

@@ -10,11 +10,6 @@ Main use-case is the LSP part of the upcoming aesophia-vscode vscode plugin.
 - No semantic checks.
 - Very limited error recovery.
 
-## Test
-```
-$ make deps
-$ make test
-```
 
 ## CLI
 
