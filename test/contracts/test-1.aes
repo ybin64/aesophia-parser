@@ -1,0 +1,8 @@
+include "List.aes"
+include "Pair.aes"
+
+include "Option.aes"
+
+contract C =
+    function f() = 2
+

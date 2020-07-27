@@ -52,6 +52,8 @@ export type AstItemType =
     'top-contract-decl' | // Syntetic
     'top-namespace-decl' | 
     'top-include-decl' |
+
+    'top-pragma-compiler' | 'version' | 'int' |
     
     'type-decl' | 'record-decl' | 'datatype-decl' | 'entrypoint-decl' | 'function-decl' | 
     'func-decl' | 
@@ -91,6 +93,26 @@ export interface AstItem_TopNamespaceDecl extends AstItem {
     con     : StrWithBELoc
 }
 
+
+export interface AstItem_TopPragmaCompiler extends AstItem {
+    type : 'top-pragma-compiler'
+    op   : StrWithBELoc
+    children : AstItem_Version[]
+}
+
+/**
+ * Version  ::= Sep1(Int, '.')
+ */
+export interface AstItem_Version extends AstItem {
+    type : 'version'
+    children : AstItem_Int[]
+}
+
+export interface AstItem_Int extends AstItem {
+    type : 'int',
+    value : StrWithBELoc
+    children : []
+}
 
 export interface AstItem_TopIncludeDecl extends AstItem {
     type : 'top-include-decl'

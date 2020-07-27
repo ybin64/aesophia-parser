@@ -8,7 +8,7 @@ Main use-case is the LSP part of the upcoming aesophia-vscode vscode plugin.
 **Caveats** for now
 - Not a complete parser.
 - No semantic checks.
-- Very limited error recovery.
+- Limited error recovery.
 
 
 ## CLI

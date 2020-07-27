@@ -90,7 +90,7 @@ describe('function decl', () => {
         })
     })
 
-    it('function-decl private', () => {
+    it('function-decl private 1', () => {
         assert.deepStrictEqual(tp.parseRuleNoLocationNoEmptyChildren('function-decl',
 'private function main() = x'
         ), {
@@ -116,6 +116,7 @@ describe('function decl', () => {
             }]
         })
     })
+
 
 
     it('function-decl id-type-signature 1', () => {

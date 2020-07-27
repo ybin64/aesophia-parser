@@ -611,6 +611,29 @@ describe('scanner token', () => {
     })
 })
 
+describe('scanner token bytes', () => {
+    it('scanner-token-bytes ok 1', () => {
+        //                           0123456
+        const scanner = new Scanner('#1F3e_A')
+        const result = scanner.nextToken()
+
+        assert.deepStrictEqual(result, {
+            type : TokenType.Bytes,
+            s : {
+                text : '#1F3e_A',
+                loc : {
+                    b : [0, 1, 1],
+                    e : [6, 1, 7]
+                },
+                fullLoc : {
+                    b : [0, 1, 1],
+                    e : [6, 1, 7]
+                },  
+            }
+        })  
+    })    
+})
+
 describe('scanner token string', () => {
     it('scanner-token-string ok 1', () => {
         //                           01234

@@ -8,7 +8,7 @@ test:
 
 single-test:
 	$(MOCHA) -r ts-node/register \
-		-g "error-recovery-function 1" \
+		-g "expr-record-or-map-update alias 2" \
 		./**/*-test.ts
 
 
@@ -28,6 +28,7 @@ verify-explicit-stdlib: \
 
 .PHONY:verify-valid-test-contracts
 verify-valid-test-contracts: \
+	../test/contracts/all_syntax.aesj \
 	../test/contracts/explicit_stdlib_include.aesj \
 	../test/contracts/identity.aesj \
 	../test/contracts/counter.aesj \

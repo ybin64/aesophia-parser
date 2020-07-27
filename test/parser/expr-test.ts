@@ -269,6 +269,64 @@ describe('expr record or map update', () => {
         })   
     })
 
+    it('expr-record-or-map-update alias 2', () => {
+        assert.deepStrictEqual(tp.parseRuleNoLocationNoEmptyChildren('expr', 
+            'm{ ["x" = 0] @ z = z + state.johann }'
+        ), {
+            type : 'expr',
+            exprType : 'record-or-map-update',
+            expr : {
+                type : 'expr',
+                exprType : 'identifier',
+                idType : 'id',
+                identifier : {
+                    text : 'm'
+                }
+            },
+            children : [{
+                type : 'field-update',
+                children : [{
+                    type : 'path',
+                    pathType : 'record-field',
+                    id : {
+                        text : 'z'
+                    }
+
+                }, {
+                    type : 'expr',
+                    exprType : 'binary-op',
+                    binOp : '+',
+                    children : [{
+                        type : 'expr',
+                        exprType : 'identifier',
+                        idType   : 'id',
+                        identifier : {
+                            text : 'z'
+                        }
+                    }, {
+                        type : 'expr',
+                        exprType : 'projection',
+                        children : [{
+                            type : 'expr',
+                            exprType : 'identifier',
+                            idType : 'id',
+                            identifier : {
+                                text : 'state'
+                            }
+                        }, {
+                            type : 'expr',
+                            exprType : 'identifier',
+                            idType : 'id',
+                            identifier : {
+                                text : 'johann'
+                            }
+                        }]
+                    }]
+                }]
+            }]
+        })   
+    })
+
     it('expr-record-or-map-update complex 1', () => {
         assert.deepStrictEqual(tp.parseRuleNoLocationNoEmptyChildren('expr', 
             'state{ contributions[Call.caller] = amount }'
@@ -885,6 +943,19 @@ describe('expr literal string', () => {
             literalType : 'string',
             literal : {
                 text : 'one'
+            }
+        })   
+    })
+})
+
+describe('expr literal bytes', () => {
+    it('expr-literal-bytes simple', () => {
+        assert.deepStrictEqual(tp.parseRuleNoLocationNoEmptyChildren('expr', '#abc'), {
+            type : 'expr',
+            exprType : 'literal',
+            literalType : 'bytes',
+            literal : {
+                text : '#abc'
             }
         })   
     })

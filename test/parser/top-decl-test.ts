@@ -86,8 +86,35 @@ namespace Foo =
                     
                 }]
             }]
-        });
+        });      
+    })
+
+
+
+    it('top-decl namespace complex 1', () => {
+
+        const result = tp.parseRule('top-decl',
+`
+namespace Ns =
+  datatype d('a) = D | S(int) | M('a, list('a), int)
+  private function fff() = 123
+
+  stateful entrypoint
+    f (1, x) = (_) => x
+`)    
+
+        assert.deepStrictEqual(result.errors, [])
+        assert.deepStrictEqual(result.warnings, [])
+
         
+
+        const ast = result.ast!
+        assert.strictEqual(ast.children.length, 3)
+        assert.strictEqual(ast.children[0].type, 'datatype-decl')
+        assert.strictEqual(ast.children[1].type, 'function-decl')
+        assert.strictEqual(ast.children[2].type, 'entrypoint-decl')
+
+        assert.strictEqual(result.scanner.nextToken(), false)
     })
 
     // FIXME: Remove this test? The trailing content test isn't done on top-decl level now

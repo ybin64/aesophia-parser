@@ -136,8 +136,6 @@ function _setSavedParseState(ps : _ParseState, sps : _SavedParseState) {
 }
 
 
-
-
 function _pushParseBlock(ps : _ParseState, parentRefPos : BeginEndPos) : _ParseBlockInfo {
     const ret : _ParseBlockInfo = {
         parentRefPos : parentRefPos,
@@ -151,7 +149,6 @@ function _pushParseBlock(ps : _ParseState, parentRefPos : BeginEndPos) : _ParseB
 function _popParseBlock(ps : _ParseState) : void {
     ps.blocks.pop()
 }
-
 
 
 const _zeroPos : Pos = [0, 1, 1]
@@ -515,8 +512,8 @@ function _parseBlock<T extends AstItem>(ps : _ParseState, refPos : BeginEndPos, 
 
     while (ast !== false) {
         //ts-ignore
-        //console.log(`_parseBlock : 20 :   ${pbi.astCount} : ${ast.type} ${ast.exprType} :  ${ast.loc.b}`)
-        //console.log('_parseBlock : 21 : pos=', ps.scanner.pos())
+        //console.log(`_parseBlock : 20 : ${ps.blocks.length-1} : ${pbi.astCount} : ${ast.type} ${ast.exprType} :  ${ast.loc.b}`)
+        //console.log(`_parseBlock : 21 : ${ps.blocks.length-1} : ${pbi.astCount} : pos=`, ps.scanner.pos())
         //console.log('ast=', ast)
 
         if (pbi.astCount === 0) {
@@ -543,13 +540,24 @@ function _parseBlock<T extends AstItem>(ps : _ParseState, refPos : BeginEndPos, 
                 || 
                 (posCol(t.s.fullLoc.b) < posCol(ret[0].loc.b))         
         ) {
+            /*
+            if (t) {
+                console.log(`t.text=`, (t as Token).s.text)
+                console.log('t.s.fullLoc.b=', (t as Token).s.fullLoc.b)
+                console.log(`ret[0].loc.b=`, ret[0].loc.b)
+            }
+            */
+
             break;
+        } else {
+            //console.log(`_parseBlock : 60 : t.text=`, t.s.text)
         }
     
         ast = _tryMatch(ps, mf)
     }
 
     _popParseBlock(ps)
+
     //console.log(`_parseBlock : 80 : ${ps.blocks.length} : ret.length=${ret.length}`)
     //console.log('')
 
@@ -644,19 +652,20 @@ function _matchSep1List<T extends AstItem>(ps: _ParseState, sepCh: string, match
 function _parseAst(ps: _ParseState, type : AstItemType) : AstItem {
 
     switch (type) {
-        case 'file'              : return _parseFile(ps)
-        case 'top-decl'          : return _parseTopDecl(ps)
-        case 'top-include-decl'  : return _matchInclude(ps)
-        case 'top-contract-decl' : return _matchContract(ps)
-        case 'type-decl'         : return _parseTypeDecl(ps)
-        case 'record-decl'       : return _matchRecordDecl(ps)
-        case 'datatype-decl'     : return _matchDataTypeDecl(ps)
-        case 'entrypoint-decl'   : return _parseEntrypointDecl(ps)
-        case 'function-decl'     : return _parseFunctionDecl(ps)
-        case 'stmt'              : return _parseStmt(ps)
-        case 'type'              : return _parseType(ps)
-        case 'expr'              : return _parseExpr(ps)
-        case 'path'              : return _matchExprPath(ps)
+        case 'file'                : return _parseFile(ps)
+        case 'top-decl'            : return _parseTopDecl(ps)
+        case 'top-include-decl'    : return _matchInclude(ps)
+        case 'top-contract-decl'   : return _matchContract(ps)
+        case 'top-pragma-compiler' : return _matchPragmaCompiler(ps)
+        case 'type-decl'           : return _parseTypeDecl(ps)
+        case 'record-decl'         : return _matchRecordDecl(ps)
+        case 'datatype-decl'       : return _matchDataTypeDecl(ps)
+        case 'entrypoint-decl'     : return _parseEntrypointDecl(ps)
+        case 'function-decl'       : return _parseFunctionDecl(ps)
+        case 'stmt'                : return _parseStmt(ps)
+        case 'type'                : return _parseType(ps)
+        case 'expr'                : return _parseExpr(ps)
+        case 'path'                : return _matchExprPath(ps)
 
         default : {
             throw new Error(`_parseAst : Unsupported ast type ${type}`)
@@ -675,14 +684,10 @@ function _checkTrailingContent(ps : _ParseState) {
 }
 
 function _parseFile(ps: _ParseState) : AstItem {
-    //console.log('_parseFile : 00 :')
     var children : AstItem[] = []
 
-
     while ((ps.scanner.peekCh() !== false)) {
-        //console.log('_parseFile : 20 : ps.scanner.pos()=', ps.scanner.pos())
         const ast = _tryParse(ps, _parseTopDecl)
-        //console.log('_parseFile : 21 : ast=', ast)
         
         if (ast) {
             children.push(ast)
@@ -720,6 +725,7 @@ function _parseTopDecl(ps: _ParseState) : AstItem {
     _try(_matchContract)
     _try(_matchNamespace)
     _try(_matchInclude)
+    _try(_matchPragmaCompiler)
 
     if (ret) {
         return ret
@@ -731,17 +737,66 @@ function _parseTopDecl(ps: _ParseState) : AstItem {
 
 
 function _matchContract(ps : _ParseState) : grammar.AstItem_TopContractDecl {
+    let tPayable = _tryMatchNextToken(ps, ['payable'])
     const t = _matchNextToken(ps, 'contract') 
     let con = _matchConCheckValid(ps)
    
+    let beginPos = t.s.fullLoc.b
+
     _matchNextChToken(ps, '=')
    
     const children = _parseBlock(ps, t.s.loc, _matchDecl)
  
-    return {..._buildAst('top-contract-decl', children, t.s.loc) as grammar.AstItem_TopContractDecl,
-        payable : false,
-        con     : tokenToStrWithBELoc(con)
+    const ret = _buildAst<grammar.AstItem_TopContractDecl>('top-contract-decl', children, {
+        b : beginPos,
+        e : children[children.length - 1].loc.e
+    })
+
+
+    ret.payable = tPayable === false ? false : true
+    ret.con     = tokenToStrWithBELoc(con)
+    
+    return ret
+}
+
+function _matchPragmaCompiler(ps : _ParseState) : grammar.AstItem_TopPragmaCompiler {
+    const t = _matchNextToken(ps, '@compiler')
+  
+    const tOp = _tryMatchNextToken(ps, ['<', '=<', '==', '>=', '>'])
+    if (tOp === false) {
+        throw new NoMatchError()
     }
+
+ 
+    const version = _matchVersion(ps)
+
+    const ret = _buildAst<grammar.AstItem_TopPragmaCompiler>('top-pragma-compiler', [version], t.s.fullLoc)
+    ret.op = tokenToStrWithBELoc(tOp)
+    return ret
+}
+
+/**
+ * Version  ::= Sep1(Int, '.')
+ */
+function _matchVersion(ps : _ParseState) : grammar.AstItem_Version {
+    const children = _matchSep1List<grammar.AstItem_Int>(ps, '.', _matchInt)
+    return _buildAst<grammar.AstItem_Version>('version', children, {
+        b : children[0].loc.b,
+        e : children[children.length - 1].loc.e
+    })
+}
+
+function _matchInt(ps : _ParseState) : grammar.AstItem_Int {
+    const t = ps.scanner.nextToken()
+
+    if ((t === false) || (t.type !== TokenType.Int)) {
+        throw new NoMatchError()
+    }
+
+    const ret = _buildAst<grammar.AstItem_Int>('int', [], t.s.fullLoc)
+    ret.value = tokenToStrWithBELoc(t)
+
+    return ret
 }
 
 function _matchNamespace(ps : _ParseState) : grammar.AstItem_TopNamespaceDecl {
@@ -761,6 +816,8 @@ function _matchNamespace(ps : _ParseState) : grammar.AstItem_TopNamespaceDecl {
 
     return ret
 }
+
+
 
 function _matchInclude(ps : _ParseState) : grammar.AstItem_TopIncludeDecl {
     const t = _matchNextToken(ps, 'include')
@@ -787,27 +844,27 @@ function _matchDecl(ps: _ParseState) : AstItem {
     if (typeDecl) {
         return typeDecl
     } 
-
+    
     const recordDecl = _tryMatch(ps, _matchRecordDecl)
     if (recordDecl) {
         return recordDecl
     }
-
+    
     const dataTypeDecl = _tryMatch(ps, _matchDataTypeDecl)
     if (dataTypeDecl) {
         return dataTypeDecl
     }
-
+    
     const entrypointDecl = _tryParse(ps, _parseEntrypointDecl)
     if (entrypointDecl) {
         return entrypointDecl
     }
-
+    
     const functionDecl = _tryParse(ps, _parseFunctionDecl)
     if (functionDecl) {
         return functionDecl
     }
-
+    
     throw new NoMatchError()
 }
 
@@ -856,7 +913,7 @@ function _matchDataTypeDecl(ps: _ParseState) : grammar.AstItem_DataTypeDecl {
     const children = _matchSep1List(ps, '|', _matchConDecl)
 
     const ret = _buildAst<grammar.AstItem_DataTypeDecl>('datatype-decl', children, {
-        b : prefix.id.s.fullLoc.b,
+        b : prefix.kwt.s.fullLoc.b,
         e : children[children.length - 1].loc.e
     })
 
@@ -1836,6 +1893,11 @@ function _matchExprArgs(ps : _ParseState, args : _MatchExprArg) : grammar.AstIte
             expr1 = _createAstExpr('literal', [], t.s.loc)
             expr1.literalType = 'string'
             expr1.literal = tokenToStrWithBELoc(t) 
+        } else if (t && (t.type === TokenType.Bytes)) {
+            // FIXME: bytes error check
+            expr1 = _createAstExpr('literal', [], t.s.loc)
+            expr1.literalType = 'bytes'
+            expr1.literal = tokenToStrWithBELoc(t) 
         } else {
             ps.scanner.setPos(orgPos)
         }
@@ -2180,13 +2242,33 @@ function _matchExprFieldUpdate(ps: _ParseState) : grammar.AstItem_FieldUpdate {
         const orgPos = ps.scanner.pos()
 
         tAlias = ps.scanner.nextToken()
-        const tAt = ps.scanner.nextToken()
 
-        if (tAlias && (tAlias.type === TokenType.Id) && _isCharToken(tAt, '@')) {
+        if (tAlias && tAlias.s.text === '[') {
+            // Default value, e.g. m{ [k = default] @ x = v }
+            // FIXME : Handle update alias correctly, just parsing it for now
 
-        } else {
-            ps.scanner.setPos(orgPos)
+            const tV1 = ps.scanner.nextToken()
+            if (_tryMatchNextToken(ps, ['='])) {
+                const tV2 = ps.scanner.nextToken()
+                if (_tryMatchNextToken(ps, ["]"]) && _tryMatchNextToken(ps, ["@"])) {
+                    // Matched, do nothing for now
+                } else {
+                    ps.scanner.setPos(orgPos)
+                }
+            } else {
+                ps.scanner.setPos(orgPos)
+            }
+
             tAlias = false
+        } else {
+            const tAt = ps.scanner.nextToken()
+
+            if (tAlias && (tAlias.type === TokenType.Id) && _isCharToken(tAt, '@')) {
+
+            } else {
+                ps.scanner.setPos(orgPos)
+                tAlias = false
+            }
         }
 
     }

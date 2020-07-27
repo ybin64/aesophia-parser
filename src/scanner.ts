@@ -65,6 +65,9 @@ export const enum TokenType {
 
     char = 100,
     op   = 101,
+
+    pragma_compiler = 121,
+
     misc = 199
 }
 
@@ -119,6 +122,15 @@ function _isEolCh(ch : string) : boolean {
 function _isDigitCh(ch : string) : boolean {
     let c = ch.charCodeAt(0)
     return (48 <= c) && (c <= 57)
+}
+
+function _isHexCh(ch : string) : boolean {
+    let c = ch.charCodeAt(0)
+    return ((48 <= c) && (c <= 57)) // 0-9
+        ||
+        ((65 <= c) && (c <= 70)) // A-F
+        ||
+        ((97 <= c) && (c <= 102)) // a-f
 }
 
 
@@ -424,7 +436,21 @@ export class Scanner {
             }
         }
 
-        if (_isLowerCaseAlphaCh(pch) || (pch === '_')) {
+        if (pch === '#') {
+            // TokenType.Bytes
+
+            pch = this.peekCh()
+            while (pch && (_isHexCh(pch) || (pch === '_'))) {
+                endPos = this.pos()
+                text += pch
+                this.nextCh()
+
+                pch = this.peekCh()  
+             }
+
+            // FIXME: Bytes error check
+            return _token(TokenType.Bytes, text, beginPos, endPos)
+        } else if (_isLowerCaseAlphaCh(pch) || (pch === '_')) {
             // TokenType.Id
             
             pch = this.peekCh()
@@ -569,6 +595,19 @@ export class Scanner {
                 t.type = TokenType.misc
                 return t
             }
+
+            if ((text === '@') && (this.peekCh()) === 'c') {
+                const orgPos = this.pos()
+
+                const t2 = this.nextToken()
+                
+                if (t2 && t2.s.text === 'compiler') {
+                    return _token2(TokenType.pragma_compiler, text + t2.s.text, beginPos, t2.s.fullLoc.e)
+                }
+
+                this.setPos(orgPos)
+            }
+
             if ('+-*/^><!'.indexOf(text) >= 0) {
                 return _token(TokenType.op, text, beginPos, endPos)
             }
