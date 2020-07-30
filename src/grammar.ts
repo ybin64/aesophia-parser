@@ -176,11 +176,12 @@ export interface AstItem_ConDecl extends AstItem {
 export type EModifier = 'payable' | 'stateful'
 
 /**
+ * ```text
  * (EModifier* 'entrypoint' Block(FunDecl)
  * EModifier ::= 'payable' | 'stateful'
  * FunDecl ::= Id ':' Type                             // Type signature
  *           | Id Args [':' Type] '=' Block(Stmt)      // Definition
- *
+ * ```
  */
 export interface AstItem_EntrypointDecl extends AstItem {
     type : 'entrypoint-decl'
@@ -192,11 +193,12 @@ export interface AstItem_EntrypointDecl extends AstItem {
 export type FModifier = 'stateful' | 'private'
 
 /**
+ * ```text
  * (FModifier* 'function' Block(FunDecl)
  * FModifier ::= 'stateful' | 'private'
  * FunDecl ::= Id ':' Type                             // Type signature
  *           | Id Args [':' Type] '=' Block(Stmt)      // Definition
- *
+ * ```
  */
 export interface AstItem_FunctionDecl extends AstItem {
     type : 'function-decl'
@@ -486,7 +488,9 @@ export interface AstItem_LamArg extends AstItem {
 }
 
 /**
+ * ```text
  * if' '(' Expr ')' Expr 'else' Expr // If expression         if(x < y) y else x
+ * ```
  */
 export interface AstItem_Expr_If extends AstItem_Expr {
     type : 'expr'
@@ -494,6 +498,32 @@ export interface AstItem_Expr_If extends AstItem_Expr {
 
     /** Contains 3 expressions */
     children : AstItem_Expr[]
+}
+
+/**
+ * **Note**: children may have only one item if it's an invalid type annotation.
+ * 
+ * ```text
+ * Expr ':' Type   // Type annotation   5 : int
+ * ```
+ */
+export interface AstItem_Expr_TypeAnnotation extends AstItem_Expr {
+    type : 'expr'
+    exprType : 'type-annotation'
+
+    /**
+     * Valid type annotation
+     * ```
+     * children[0] = expr
+     * children[1] = type
+     * ```
+     * 
+     * An invalid type-annotation have only one child.
+     * ```
+     * children[0] = expr
+     * ```
+     */
+    children : AstItem[]
 }
 export interface AstItem_Expr_BinaryOp extends AstItem_Expr {
     type : 'expr',

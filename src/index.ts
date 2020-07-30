@@ -34,7 +34,7 @@ export {
     AstItem_Case, AstItem_Stmt_FunctionDef,
 
     AstItem_Expr,
-    AstItem_Expr_AnonymousFunction, AstItem_LamArg, AstItem_Expr_If, AstItem_Expr_BinaryOp,
+    AstItem_Expr_AnonymousFunction, AstItem_LamArg, AstItem_Expr_If, AstItem_Expr_TypeAnnotation, AstItem_Expr_BinaryOp,
     AstItem_Expr_UnaryOp, AstItem_Expr_Application, AstItem_Expr_Projection,
     AstItem_Expr_MapLookup, AstItem_Expr_List, AstItem_Expr_ListComprehension, AstItem_Generator,
     AstItem_Expr_ListRange, AstItem_Expr_Identifier, 

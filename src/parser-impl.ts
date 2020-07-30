@@ -1933,12 +1933,12 @@ function _matchExprArgs(ps : _ParseState, args : _MatchExprArg) : grammar.AstIte
                 const type = _tryParse(ps, _parseType)
 
                 if (type) {
-                    ret = _createAstExpr('type-annotation', [ret, type], _astBEPos(expr1, type))
+                    ret = _createAstExpr<grammar.AstItem_Expr_TypeAnnotation>('type-annotation', [ret, type], _astBEPos(expr1, type))
                     continue
                 } else {
                     // FIXME : Add real error and return 
                     _addParseError(ps, 'Missing type', colon.s.loc)
-                    ret = _createAstExpr('type-annotation', [ret], _astBEPos(expr1, expr1))
+                    ret = _createAstExpr<grammar.AstItem_Expr_TypeAnnotation>('type-annotation', [ret], _astBEPos(expr1, expr1))
                     break
                 }
             }
