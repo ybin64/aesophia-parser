@@ -717,7 +717,7 @@ export type AddIncludeArgs = {
 
 export type AddIncludeFunc = (args : AddIncludeArgs) => void;
 
-export  type ParseArgs = {
+export type ParseArgs = {
     startRule      : string
 
     // '-' if not from file

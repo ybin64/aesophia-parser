@@ -3,6 +3,6 @@ include "Pair.aes"
 
 include "Option.aes"
 
-contract C =
+payable contract C =
     function f() = 2
 

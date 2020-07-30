@@ -1,6 +1,6 @@
 {
   "name": "aesophia-parser",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Aeternity sophia language parser",
   "main": "./dist/index.js",
   "typings": "./dist/index.d.ts",
